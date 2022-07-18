@@ -1,4 +1,5 @@
-import { Color, Baduk } from "./baduk";
+import { Baduk } from "./baduk";
+import { Color } from "../abstractAlternatingBlackWhiteOnGrid";
 
 test("Play a game", () => {
   const game = new Baduk({ width: 4, height: 2, komi: 0.5 });

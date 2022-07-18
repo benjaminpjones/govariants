@@ -1,7 +1,7 @@
 import { TicTacToe } from "./tictactoe";
 
 test("Play a game", () => {
-  const game = new TicTacToe({ size: 3 });
+  const game = new TicTacToe({ height: 3, width: 3 });
 
   game.playMove({ 0: "00" });
   game.playMove({ 1: "11" });
@@ -11,7 +11,7 @@ test("Play a game", () => {
   // X O X
   // - O -
   // - - -
-  expect(game.exportState().grid).toEqual([
+  expect(game.exportState().board).toEqual([
     ["x", "o", "x"],
     [undefined, "o", undefined],
     [undefined, undefined, undefined],
@@ -23,7 +23,7 @@ test("Play a game", () => {
   expect(game.phase).toBe("play");
 
   game.playMove({ 1: "12" });
-  expect(game.exportState().grid).toEqual([
+  expect(game.exportState().board).toEqual([
     ["x", "o", "x"],
     ["x", "o", undefined],
     [undefined, "o", undefined],

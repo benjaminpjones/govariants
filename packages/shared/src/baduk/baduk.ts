@@ -1,87 +1,50 @@
-import { AbstractGame, MovesType } from "../abstract_game";
+import {
+  AbstractAlternatingBlackWhiteOnGridVariant,
+  AbstractAlternatingBlackWhiteOnGridVariantConfig,
+  AbstractAlternatingBlackWhiteOnGridVariantState,
+  makeGridWithValue,
+  copyBoard,
+  isOutOfBounds,
+  Color,
+} from "../abstractAlternatingBlackWhiteOnGrid";
 
-export enum Color {
-  EMPTY = 0,
-  BLACK = 1,
-  WHITE = 2,
-}
-
-export interface BadukConfig {
-  width: number;
-  height: number;
+export interface BadukConfig
+  extends AbstractAlternatingBlackWhiteOnGridVariantConfig {
   komi: number;
 }
 
-export interface BadukState {
-  board: Color[][];
-  next_to_play: 0 | 1;
+export interface BadukState
+  extends AbstractAlternatingBlackWhiteOnGridVariantState {
   captures: { 0: number; 1: number };
 }
 
+// TODO: Redundant code in super class file
 interface Coordinate {
   readonly x: number;
   readonly y: number;
 }
 
-type BadukMovesType = { 0: string } | { 1: string };
-
-export class Baduk extends AbstractGame<BadukConfig, BadukState> {
-  private board: Color[][];
-  private next_to_play: 0 | 1 = 0;
+export class Baduk extends AbstractAlternatingBlackWhiteOnGridVariant<
+  BadukConfig,
+  BadukState
+> {
   private captures = { 0: 0, 1: 0 };
-  private last_move = "";
 
   constructor(config: BadukConfig) {
     super(config);
-    this.board = makeEmptyBoard(config.width, config.height);
   }
 
-  exportState(): BadukState {
+  override exportState(): BadukState {
     return {
-      board: copyBoard(this.board),
+      ...super.exportState(),
       captures: { 0: this.captures[0], 1: this.captures[1] },
-      next_to_play: this.next_to_play,
     };
   }
 
-  nextToPlay(): number[] {
-    return [this.next_to_play];
-  }
-
-  playMove(moves: BadukMovesType): void {
-    const { player, move } = getOnlyMove(moves);
-    if (player != this.next_to_play) {
-      throw Error(`It's not player ${player}'s turn!`);
-    }
-    this.next_to_play = this.next_to_play === 0 ? 1 : 0;
-
-    if (move == "pass") {
-      if (this.last_move === "pass") {
-        this.finalizeScore();
-      } else {
-        this.last_move = move;
-      }
-      return;
-    }
-
-    const decoded_move = decodeMove(move);
-    const { x, y } = decoded_move;
-    if (isOutOfBounds(decoded_move, this.board)) {
-      throw Error(
-        `Move out of bounds. (move: ${decoded_move}, board dimensions: ${this.config.width}x${this.config.height}`
-      );
-    }
-    if (this.board[y][x] != Color.EMPTY) {
-      throw Error(
-        `Cannot place a stone on top of an existing stone. (${this.board[y][x]} at (${x}, ${y}))`
-      );
-    }
-    const player_color = player === 0 ? Color.BLACK : Color.WHITE;
-    const opponent_color = player === 0 ? Color.WHITE : Color.BLACK;
-    this.board[y][x] = player_color;
-
-    // Capture any opponent groups
-    neighboringPositions(decoded_move).forEach((pos) => {
+  protected override playMoveInternal(move: Coordinate): void {
+    super.playMoveInternal(move);
+    const opponent_color = this.next_to_play === 0 ? Color.WHITE : Color.BLACK;
+    neighboringPositions(move).forEach((pos) => {
       if (isOutOfBounds(pos, this.board)) {
         return;
       }
@@ -89,21 +52,28 @@ export class Baduk extends AbstractGame<BadukConfig, BadukState> {
         this.board[pos.y][pos.x] === opponent_color &&
         !groupHasLiberties(pos, this.board)
       ) {
-        this.captures[player] += removeGroup(pos, this.board);
+        this.captures[this.next_to_play] += removeGroup(pos, this.board);
       }
     });
+  }
 
+  protected override postValidateMove(move: Coordinate): void {
     // Detect suicide
-    if (!groupHasLiberties(decoded_move, this.board)) {
+    if (!groupHasLiberties(move, this.board)) {
       console.log(this.board);
       throw Error("Move is suicidal!");
     }
-
-    this.last_move = move;
   }
 
-  numPlayers(): number {
-    return 2;
+  protected override prepareForNextMove(
+    move: string,
+    decoded_move?: Coordinate
+  ): void {
+    if (move == "pass" && this.last_move === "pass") {
+      this.finalizeScore();
+    } else {
+      super.prepareForNextMove(move, decoded_move);
+    }
   }
 
   private finalizeScore(): void {
@@ -169,43 +139,10 @@ export class Baduk extends AbstractGame<BadukConfig, BadukState> {
     this.phase = "gameover";
   }
 
-  resign(player: number) {
-    this.phase = "gameover";
-    this.result = player === 0 ? "W+R" : "B+R";
-  }
-}
-
-function makeEmptyBoard(width: number, height: number): Color[][] {
-  return makeGridWithValue(width, height, Color.EMPTY);
-}
-
-function makeGridWithValue<T>(width: number, height: number, value: T): T[][] {
-  return new Array(height).fill(null).map(() => new Array(width).fill(value));
-}
-
-function copyBoard(board: Color[][]) {
-  return board.map((row) => [...row]);
-}
-
-function decodeMove(move: string): Coordinate {
-  return { x: decodeChar(move[0]), y: decodeChar(move[1]) };
-}
-
-// a: 0, b: 1, ... z: 25, A: 26, ... Z: 51
-function decodeChar(char: string): number {
-  const a = "a".charCodeAt(0);
-  const z = "z".charCodeAt(0);
-  const A = "A".charCodeAt(0);
-  const Z = "Z".charCodeAt(0);
-  const char_code = char.charCodeAt(0);
-  if (char_code >= a && char_code <= z) {
-    return char_code - a;
-  }
-  if (char_code >= A && char_code <= Z) {
-    return char_code - A + 26;
-  }
-
-  throw `Invalid character in move: ${char} (${char_code})`;
+  // resign(player: number) {
+  //   this.phase = "gameover";
+  //   this.result = player === 0 ? "W+R" : "B+R";
+  // }
 }
 
 /** Returns true if the group containing (x, y) has at least one liberty. */
@@ -254,23 +191,6 @@ function neighboringPositions({ x, y }: Coordinate) {
  */
 function removeGroup(pos: Coordinate, board: Color[][]): number {
   return floodFill(pos, Color.EMPTY, board);
-}
-
-/** Asserts there is exaclty one move, and returns it */
-function getOnlyMove(moves: MovesType): { player: number; move: string } {
-  const players = Object.keys(moves);
-  if (players.length > 1) {
-    throw Error(`More than one player: ${players}`);
-  }
-  if (players.length === 0) {
-    throw Error("No players specified!");
-  }
-  const player = Number(players[0]);
-  return { player, move: moves[player] };
-}
-
-function isOutOfBounds({ x, y }: Coordinate, board: Color[][]): boolean {
-  return board[y] === undefined || board[y][x] === undefined;
 }
 
 /** Fills area with the given color, and returns the number of spaces filled. */

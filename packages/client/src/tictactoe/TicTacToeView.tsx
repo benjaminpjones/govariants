@@ -1,6 +1,6 @@
 import { GameViewProps } from "../view_types";
 import { map2d, GridBoard, Stone } from "../boards";
-import { TicTacToeState } from "@ogfcommunity/variants-shared";
+import { TicTacToeState, Color } from "@ogfcommunity/variants-shared";
 
 export function TicTacToeView({
   gamestate,
@@ -10,22 +10,24 @@ export function TicTacToeView({
   // server, might as well use a Go board :)
   // The following statement turns Xs and Os into something GridBoard can
   // understand
-  const board: Stone[][] = map2d(gamestate.grid, (space_state) => {
-    switch (space_state) {
-      case "x":
+  const processed_board: Stone[][] = map2d(gamestate.board, (color) => {
+    switch (color) {
+      case Color.BLACK:
         return { color: "black" };
-      case "o":
+      case Color.WHITE:
         return { color: "white" };
-      case undefined:
+      case Color.EMPTY:
         return {};
     }
   });
-
-  // e.g. if player 0 clicks the center of a 3x3 board,
-  // the move object { 0: "11" } will be sent to the server.
   const onClick = (pos: { x: number; y: number }) => {
-    onMove({ [gamestate.next_to_play]: pos.x.toString() + pos.y.toString() });
+    onMove({ [gamestate.next_to_play]: coordsToLetters(pos.x, pos.y) });
   };
 
-  return <GridBoard board={board} onClick={onClick} />;
+  return <GridBoard board={processed_board} onClick={onClick} />;
+}
+
+function coordsToLetters(x: number, y: number) {
+  const alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  return alphabet[x] + alphabet[y];
 }
